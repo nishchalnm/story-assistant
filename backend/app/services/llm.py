@@ -1,11 +1,8 @@
-import anthropic
-from app.config import ANTHROPIC_API_KEY, GENERATION_MODEL, EXTRACTION_MODEL
+import httpx
 import json
-
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+from app.config import OLLAMA_BASE_URL, GENERATION_MODEL, EXTRACTION_MODEL
 
 def format_bible_for_prompt(bible_facts: list) -> str:
-    """Convert list of bible fact rows into readable text for prompt."""
     if not bible_facts:
         return "No story bible established yet."
     
@@ -29,6 +26,22 @@ def format_bible_for_prompt(bible_facts: list) -> str:
     
     return "\n\n".join(output)
 
+def ollama_chat(system: str, prompt: str, model: str) -> str:
+    with httpx.Client(timeout=120.0) as client:
+        response = client.post(
+            f"{OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False
+            }
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
+
 async def generate_scene(description: str, bible_facts: list, last_scene: str = "") -> str:
     bible_text = format_bible_for_prompt(bible_facts)
     
@@ -43,18 +56,15 @@ async def generate_scene(description: str, bible_facts: list, last_scene: str = 
 USER'S SCENE DESCRIPTION:
 {description}
 
-Write this scene in 2-3 literary paragraphs. Match the established tone precisely. 
+Write this scene in 2-3 literary paragraphs. Match the established tone precisely.
 Do not introduce new characters unless specified in the description.
 Do not contradict any facts in the story bible."""
 
-    message = client.messages.create(
-        model=GENERATION_MODEL,
-        max_tokens=1024,
+    return ollama_chat(
         system="You are a literary writing assistant. Write in the established tone and style of this story. Never introduce facts that contradict the story bible.",
-        messages=[{"role": "user", "content": prompt}]
+        prompt=prompt,
+        model=GENERATION_MODEL
     )
-    
-    return message.content[0].text
 
 async def extract_bible_facts(scene_content: str, existing_bible: list) -> dict:
     existing_text = format_bible_for_prompt(existing_bible)
@@ -65,7 +75,7 @@ async def extract_bible_facts(scene_content: str, existing_bible: list) -> dict:
 NEW SCENE TO ANALYZE:
 {scene_content}
 
-Extract ALL new information from this scene. Return ONLY valid JSON, no other text.
+Extract ALL new information from this scene. Return ONLY valid JSON, no other text, no markdown fences.
 
 {{
   "new_characters": [
@@ -101,18 +111,18 @@ Extract ALL new information from this scene. Return ONLY valid JSON, no other te
   ]
 }}"""
 
-    message = client.messages.create(
-        model=EXTRACTION_MODEL,
-        max_tokens=2048,
-        system="You are a precise story analyst. Extract structured facts from fiction. Return only valid JSON.",
-        messages=[{"role": "user", "content": prompt}]
+    raw = ollama_chat(
+        system="You are a precise story analyst. Extract structured facts from fiction. Return only valid JSON, no markdown, no explanation.",
+        prompt=prompt,
+        model=EXTRACTION_MODEL
     )
     
-    raw = message.content[0].text.strip()
-    # Strip markdown code fences if model adds them
+    # Strip markdown fences if model adds them anyway
+    raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
+    raw = raw.strip()
     
-    return json.loads(raw.strip())
+    return json.loads(raw)
