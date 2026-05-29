@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
-from app.services.llm import generate_scene
+from app.services.llm import generate_scene, iterate_scene
 from app.services.bible_updater import update_bible_after_approval
 from app.database import supabase
 
@@ -8,7 +8,7 @@ router = APIRouter()
 
 class SceneGenerateRequest(BaseModel):
     project_id: str
-    description: str          # what user typed they want to happen
+    description: str
     last_scene_content: str = ""
 
 class SceneApproveRequest(BaseModel):
@@ -16,17 +16,21 @@ class SceneApproveRequest(BaseModel):
     scene_number: int
     content: str
 
+class SceneIterateRequest(BaseModel):
+    project_id: str
+    current_draft: str
+    feedback: str
+
 @router.post("/generate")
 async def generate(req: SceneGenerateRequest):
-    # Fetch current bible for this project
     bible_result = supabase.table("bible_facts")\
         .select("*")\
         .eq("project_id", req.project_id)\
         .eq("status", "confirmed")\
         .execute()
-    
+
     bible_facts = bible_result.data or []
-    
+
     generated_text = await generate_scene(
         description=req.description,
         bible_facts=bible_facts,
@@ -34,9 +38,25 @@ async def generate(req: SceneGenerateRequest):
     )
     return {"content": generated_text}
 
+@router.post("/iterate")
+async def iterate(req: SceneIterateRequest):
+    bible_result = supabase.table("bible_facts")\
+        .select("*")\
+        .eq("project_id", req.project_id)\
+        .eq("status", "confirmed")\
+        .execute()
+
+    bible_facts = bible_result.data or []
+
+    revised_text = await iterate_scene(
+        current_draft=req.current_draft,
+        feedback=req.feedback,
+        bible_facts=bible_facts
+    )
+    return {"content": revised_text}
+
 @router.post("/approve")
 async def approve(req: SceneApproveRequest, background_tasks: BackgroundTasks):
-    # Save scene to database
     scene_data = {
         "project_id": req.project_id,
         "scene_number": req.scene_number,
@@ -46,13 +66,12 @@ async def approve(req: SceneApproveRequest, background_tasks: BackgroundTasks):
     }
     result = supabase.table("scenes").insert(scene_data).execute()
     scene_id = result.data[0]["id"]
-    
-    # Fire bible update in background - user doesn't wait for this
+
     background_tasks.add_task(
         update_bible_after_approval,
         project_id=req.project_id,
         scene_id=scene_id,
         scene_content=req.content
     )
-    
+
     return {"status": "approved", "scene_id": scene_id, "bible_update": "processing"}
