@@ -193,3 +193,35 @@ Match the established tone. Do not contradict the story bible."""
     )
 
     return response.choices[0].message.content
+
+async def ask_story_question(question: str, bible_facts: list, recent_scenes: list) -> str:
+    bible_text = format_bible_for_prompt(bible_facts)
+    
+    recent_text = ""
+    if recent_scenes:
+        recent_text = "\n\nRECENT APPROVED SCENES (most recent last):\n"
+        for scene in recent_scenes[-3:]:  # last 3 scenes only
+            recent_text += f"\nScene {scene['scene_number']}:\n{scene['content']}\n"
+    
+    prompt = f"""STORY BIBLE:
+{bible_text}
+{recent_text}
+
+WRITER'S QUESTION:
+{question}
+
+You are a thoughtful creative collaborator. Answer the writer's question using everything you know about their story. Be specific — reference actual characters, established facts, plot threads. If they're stuck, give concrete suggestions that fit the tone and logic of their world. Be conversational, not formal. 2-4 paragraphs max."""
+
+    response = groq_client.chat.completions.create(
+        model=GENERATION_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are an expert creative writing collaborator. You know this story intimately. Give specific, grounded advice that respects what has already been established."
+            },
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=800,
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
