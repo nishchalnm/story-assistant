@@ -56,8 +56,8 @@ export default function EditorPage() {
       const res = await fetch(`${API}/projects/${projectId}`);
       const data = await res.json();
       setProject(data);
-    } catch (e) {
-      console.error('Failed to fetch project', e);
+    } catch (err) {
+      console.error('Failed to fetch project', err);
     }
   }
 
@@ -68,8 +68,8 @@ export default function EditorPage() {
       const scenes = data.scenes || [];
       setApprovedScenes(scenes);
       setSceneNumber(scenes.length + 1);
-    } catch (e) {
-      console.error('Failed to fetch scenes', e);
+    } catch (err) {
+      console.error('Failed to fetch scenes', err);
     }
   }
 
@@ -332,10 +332,10 @@ export default function EditorPage() {
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                   Ask anything about your story.<br /><br />
                   <span style={{ color: 'var(--border)', fontSize: '12px' }}>
-                    "What has Elena been through so far?"<br />
-                    "I'm stuck — what should happen next?"<br />
-                    "What plot threads are unresolved?"<br />
-                    "Suggest a direction for this scene."
+                    &ldquo;What has Elena been through so far?&rdquo;<br />
+                    &ldquo;I&apos;m stuck — what should happen next?&rdquo;<br />
+                    &ldquo;What plot threads are unresolved?&rdquo;<br />
+                    &ldquo;Suggest a direction for this scene.&rdquo;
                   </span>
                 </div>
               )}
