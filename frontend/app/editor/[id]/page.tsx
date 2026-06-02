@@ -80,7 +80,6 @@ export default function EditorPage() {
     setChatMessages(prev => [...prev, { role: 'user', content: question }]);
     setChatLoading(true);
 
-    // Include current draft in question if there's something written
     const fullQuestion = currentText.trim()
       ? `Current scene draft:\n"${currentText.slice(0, 400)}${currentText.length > 400 ? '...' : ''}"\n\nWriter's question: ${question}`
       : question;
@@ -193,6 +192,20 @@ export default function EditorPage() {
           }}
         >
           {approving ? 'SAVING...' : 'APPROVE SCENE'}
+        </button>
+
+        <button
+          onClick={() => router.push(`/bible/${projectId}`)}
+          style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '6px 14px', fontSize: '11px', letterSpacing: '2px', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' }}
+        >
+          BIBLE
+        </button>
+
+        <button
+          onClick={() => router.push(`/story/${projectId}`)}
+          style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '6px 14px', fontSize: '11px', letterSpacing: '2px', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' }}
+        >
+          STORY
         </button>
 
         <button
