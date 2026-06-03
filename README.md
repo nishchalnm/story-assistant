@@ -1,10 +1,10 @@
 ---
-title: Writing Assistant API
+title: Story Assistant API
 emoji: 📖
 colorFrom: gray
 colorTo: gray
 sdk: docker
-app_port: 8000
+app_port: 7860
 ---
 
 Story Assistant backend API.
