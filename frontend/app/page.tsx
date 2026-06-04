@@ -29,9 +29,11 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/projects/`);
       const data = await res.json();
-      setProjects(data.projects || []);
-    } catch (e) {
-      console.error('Failed to fetch projects', e);
+      // handle both {projects: [...]} and {projects: {data: [...]}} shapes
+      const list = data.projects?.data || data.projects || [];
+      setProjects(list);
+    } catch (err) {
+      console.error('Failed to fetch projects', err);
     } finally {
       setFetching(false);
     }
@@ -47,9 +49,11 @@ export default function Home() {
         body: JSON.stringify({ title, premise }),
       });
       const data = await res.json();
-      router.push(`/editor/${data.id}`);
-    } catch (e) {
-      console.error('Failed to create project', e);
+      const projectId = data.project?.id || data.id;
+      if (!projectId) throw new Error('No project ID returned');
+      router.push(`/editor/${projectId}`);
+    } catch (err) {
+      console.error('Failed to create project', err);
       setLoading(false);
     }
   }
