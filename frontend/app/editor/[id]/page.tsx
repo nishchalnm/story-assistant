@@ -39,6 +39,12 @@ export default function EditorPage() {
   const [approveStatus, setApproveStatus] = useState('');
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+
+  // Enhance state
+  const [enhancedContent, setEnhancedContent] = useState('');
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [showEnhanceReview, setShowEnhanceReview] = useState(false);
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -77,18 +83,29 @@ export default function EditorPage() {
     if (!chatInput.trim() || chatLoading) return;
     const question = chatInput.trim();
     setChatInput('');
-    setChatMessages(prev => [...prev, { role: 'user', content: question }]);
+
+    // Append user message first so history is current when we send
+    const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: question }];
+    setChatMessages(updatedMessages);
     setChatLoading(true);
 
     const fullQuestion = currentText.trim()
       ? `Current scene draft:\n"${currentText.slice(0, 400)}${currentText.length > 400 ? '...' : ''}"\n\nWriter's question: ${question}`
       : question;
 
+    // Build history from all messages BEFORE this new question
+    // (updatedMessages includes the new user msg at the end — exclude it,
+    // since the backend treats the question param as the final turn)
+    const historyToSend = chatMessages.map(m => ({ role: m.role, content: m.content }));
+
     try {
       const res = await fetch(`${API}/bible/${projectId}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: fullQuestion }),
+        body: JSON.stringify({
+          question: fullQuestion,
+          chat_history: historyToSend,
+        }),
       });
       const data = await res.json();
       setChatMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
@@ -97,6 +114,40 @@ export default function EditorPage() {
     } finally {
       setChatLoading(false);
     }
+  }
+
+  async function enhanceScene() {
+    if (!currentText.trim() || isEnhancing) return;
+    setIsEnhancing(true);
+
+    try {
+      const res = await fetch(`${API}/scene/enhance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          content: currentText,
+        }),
+      });
+      const data = await res.json();
+      setEnhancedContent(data.enhanced);
+      setShowEnhanceReview(true);
+    } catch (e) {
+      console.error('Enhance failed', e);
+    } finally {
+      setIsEnhancing(false);
+    }
+  }
+
+  function acceptEnhancement() {
+    setCurrentText(enhancedContent);
+    setShowEnhanceReview(false);
+    setEnhancedContent('');
+  }
+
+  function rejectEnhancement() {
+    setShowEnhanceReview(false);
+    setEnhancedContent('');
   }
 
   async function approveScene() {
@@ -118,6 +169,8 @@ export default function EditorPage() {
       setApproveStatus('✓ Scene saved. Bible updating...');
       await fetchScenes();
       setCurrentText('');
+      setShowEnhanceReview(false);
+      setEnhancedContent('');
 
       setTimeout(() => setApproveStatus(''), 4000);
     } catch (e) {
@@ -174,6 +227,26 @@ export default function EditorPage() {
             {approveStatus}
           </div>
         )}
+
+        {/* Enhance button */}
+        <button
+          onClick={enhanceScene}
+          disabled={isEnhancing || !currentText.trim() || showEnhanceReview}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--accent)',
+            color: 'var(--accent)',
+            padding: '6px 18px',
+            fontSize: '11px',
+            letterSpacing: '2px',
+            cursor: isEnhancing || !currentText.trim() || showEnhanceReview ? 'default' : 'pointer',
+            fontFamily: 'JetBrains Mono, monospace',
+            opacity: !currentText.trim() || showEnhanceReview ? 0.35 : 1,
+            transition: 'all 0.2s',
+          }}
+        >
+          {isEnhancing ? 'ENHANCING...' : '✦ ENHANCE'}
+        </button>
 
         <button
           onClick={approveScene}
@@ -279,38 +352,136 @@ export default function EditorPage() {
           </div>
         )}
 
-        {/* Center — writing area */}
+        {/* Center — writing area OR enhance review */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <textarea
-            ref={textareaRef}
-            value={currentText}
-            onChange={e => setCurrentText(e.target.value)}
-            placeholder={`Scene ${sceneNumber}. Begin writing...`}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              color: 'var(--text)',
-              fontSize: '17px',
-              lineHeight: '1.9',
-              fontFamily: 'Playfair Display, serif',
-              padding: '60px 80px',
-              caretColor: 'var(--accent)',
-            }}
-          />
-          <div style={{
-            padding: '12px 80px',
-            borderTop: '1px solid var(--border)',
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            gap: '24px',
-          }}>
-            <span>{currentText.trim() ? currentText.trim().split(/\s+/).length : 0} words</span>
-            <span>{currentText.length} characters</span>
-          </div>
+
+          {showEnhanceReview ? (
+            /* ── Enhance review: side-by-side ── */
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+              {/* Review header */}
+              <div style={{
+                padding: '14px 32px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '24px',
+                flexShrink: 0,
+              }}>
+                <div style={{ fontSize: '10px', letterSpacing: '3px', color: 'var(--text-muted)' }}>
+                  ENHANCE REVIEW
+                </div>
+                <div style={{ flex: 1 }} />
+                <button
+                  onClick={acceptEnhancement}
+                  style={{
+                    background: 'var(--accent)',
+                    border: '1px solid var(--accent)',
+                    color: 'var(--bg)',
+                    padding: '6px 20px',
+                    fontSize: '11px',
+                    letterSpacing: '2px',
+                    cursor: 'pointer',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
+                >
+                  ACCEPT
+                </button>
+                <button
+                  onClick={rejectEnhancement}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-muted)',
+                    padding: '6px 20px',
+                    fontSize: '11px',
+                    letterSpacing: '2px',
+                    cursor: 'pointer',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
+                >
+                  REJECT
+                </button>
+              </div>
+
+              {/* Side by side */}
+              <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+                {/* Original */}
+                <div style={{ flex: 1, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 32px 8px', fontSize: '10px', letterSpacing: '3px', color: 'var(--text-muted)', flexShrink: 0 }}>
+                    ORIGINAL
+                  </div>
+                  <div style={{
+                    flex: 1,
+                    overflow: 'auto',
+                    padding: '8px 32px 40px',
+                    fontSize: '16px',
+                    lineHeight: '1.9',
+                    fontFamily: 'Playfair Display, serif',
+                    color: 'var(--text-muted)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {currentText}
+                  </div>
+                </div>
+
+                {/* Enhanced */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 32px 8px', fontSize: '10px', letterSpacing: '3px', color: 'var(--accent)', flexShrink: 0 }}>
+                    ENHANCED
+                  </div>
+                  <div style={{
+                    flex: 1,
+                    overflow: 'auto',
+                    padding: '8px 32px 40px',
+                    fontSize: '16px',
+                    lineHeight: '1.9',
+                    fontFamily: 'Playfair Display, serif',
+                    color: 'var(--text)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {enhancedContent}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          ) : (
+            /* ── Normal writing area ── */
+            <>
+              <textarea
+                ref={textareaRef}
+                value={currentText}
+                onChange={e => setCurrentText(e.target.value)}
+                placeholder={`Scene ${sceneNumber}. Begin writing...`}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'none',
+                  color: 'var(--text)',
+                  fontSize: '17px',
+                  lineHeight: '1.9',
+                  fontFamily: 'Playfair Display, serif',
+                  padding: '60px 80px',
+                  caretColor: 'var(--accent)',
+                }}
+              />
+              <div style={{
+                padding: '12px 80px',
+                borderTop: '1px solid var(--border)',
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                gap: '24px',
+              }}>
+                <span>{currentText.trim() ? currentText.trim().split(/\s+/).length : 0} words</span>
+                <span>{currentText.length} characters</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right panel — chat */}

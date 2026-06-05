@@ -85,6 +85,30 @@ Write this scene in 2-3 literary paragraphs. Match the established tone precisel
 Do not introduce new characters unless specified in the description.
 Do not contradict any facts in the story bible."""
 
+# ── ENHANCE PROMPT ────────────────────────────────────────────────────────────
+
+ENHANCE_SYSTEM_PROMPT = """You are a master literary editor with a precise, 
+unsparing eye for craft. You transform rough prose into polished literary fiction.
+Never introduce facts that contradict the story bible.
+Preserve the writer's intent and core events — elevate how they're expressed."""
+
+ENHANCE_PROMPT_TEMPLATE = """STORY BIBLE:
+{bible_text}
+
+ROUGH TEXT TO ENHANCE:
+{rough_text}
+
+Rewrite this as polished literary prose. Apply these craft principles:
+- Sensory detail: ground the reader in specific sights, sounds, textures, smells
+- Sentence rhythm: vary sentence length deliberately — short for tension, long for immersion
+- Subtext: let emotion live in action and detail, not stated outright
+- Show don't tell: replace statements of feeling with physical manifestation
+- Pacing: control how fast or slow time moves through the scene
+
+Keep the same events and characters. Match the tone of the story bible.
+Do not add new characters or contradict established facts.
+Return only the enhanced prose — no preamble, no commentary."""
+
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -194,33 +218,81 @@ Match the established tone. Do not contradict the story bible."""
 
     return response.choices[0].message.content
 
-async def ask_story_question(question: str, bible_facts: list, recent_scenes: list) -> str:
+
+async def enhance_scene(rough_text: str, bible_facts: list) -> str:
     bible_text = format_bible_for_prompt(bible_facts)
-    
-    recent_text = ""
-    if recent_scenes:
-        recent_text = "\n\nRECENT APPROVED SCENES (most recent last):\n"
-        for scene in recent_scenes[-3:]:  # last 3 scenes only
-            recent_text += f"\nScene {scene['scene_number']}:\n{scene['content']}\n"
-    
-    prompt = f"""STORY BIBLE:
-{bible_text}
-{recent_text}
 
-WRITER'S QUESTION:
-{question}
-
-You are a thoughtful creative collaborator. Answer the writer's question using everything you know about their story. Be specific — reference actual characters, established facts, plot threads. If they're stuck, give concrete suggestions that fit the tone and logic of their world. Be conversational, not formal. 2-4 paragraphs max."""
+    prompt = ENHANCE_PROMPT_TEMPLATE.format(
+        bible_text=bible_text,
+        rough_text=rough_text
+    )
 
     response = groq_client.chat.completions.create(
         model=GENERATION_MODEL,
         messages=[
-            {
-                "role": "system",
-                "content": "You are an expert creative writing collaborator. You know this story intimately. Give specific, grounded advice that respects what has already been established."
-            },
+            {"role": "system", "content": ENHANCE_SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ],
+        max_tokens=1024,
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content
+
+
+async def ask_story_question(
+    question: str,
+    bible_facts: list,
+    recent_scenes: list,
+    chat_history: list = []
+) -> str:
+    bible_text = format_bible_for_prompt(bible_facts)
+
+    recent_text = ""
+    if recent_scenes:
+        recent_text = "\n\nRECENT APPROVED SCENES (most recent last):\n"
+        for scene in recent_scenes[-3:]:
+            recent_text += f"\nScene {scene['scene_number']}:\n{scene['content']}\n"
+
+    # First user message: all story context
+    context_message = {
+        "role": "user",
+        "content": f"""STORY BIBLE:
+{bible_text}
+{recent_text}
+
+You are a thoughtful creative collaborator. Answer questions using everything 
+you know about this story. Be specific — reference actual characters, established 
+facts, plot threads. If the writer is stuck, give concrete suggestions that fit 
+the tone and logic of their world. Be conversational, not formal. 2-4 paragraphs max."""
+    }
+
+    # Anchor assistant acknowledgment so turn order is valid before history
+    context_ack = {
+        "role": "assistant",
+        "content": "Understood — I know this story well. What would you like to explore?"
+    }
+
+    # Build messages: system → context → ack → chat history → current question
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an expert creative writing collaborator. You know this story intimately. Give specific, grounded advice that respects what has already been established."
+        },
+        context_message,
+        context_ack,
+    ]
+
+    # Append prior turns from this session
+    for turn in chat_history:
+        messages.append({"role": turn["role"], "content": turn["content"]})
+
+    # Final question
+    messages.append({"role": "user", "content": question})
+
+    response = groq_client.chat.completions.create(
+        model=GENERATION_MODEL,
+        messages=messages,
         max_tokens=800,
         temperature=0.7,
     )
