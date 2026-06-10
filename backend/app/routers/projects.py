@@ -7,12 +7,14 @@ router = APIRouter()
 class ProjectCreateRequest(BaseModel):
     title: str
     premise: str = ""
+    mode: str = "novel"
 
 @router.post("/")
 async def create_project(req: ProjectCreateRequest):
     result = supabase.table("projects").insert({
         "title": req.title,
-        "premise": req.premise
+        "premise": req.premise,
+        "mode": req.mode
     }).execute()
     return {"project": result.data[0]}
 
@@ -31,4 +33,4 @@ async def get_project(project_id: str):
         .eq("id", project_id)\
         .single()\
         .execute()
-    return {"project": result.data}
+    return result.data

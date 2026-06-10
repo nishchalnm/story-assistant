@@ -28,25 +28,24 @@ async def get_questions(project_id: str):
 
 
 class ChatTurn(BaseModel):
-    role: str   # "user" or "assistant"
+    role: str
     content: str
 
 
 class AskRequest(BaseModel):
     question: str
     chat_history: List[ChatTurn] = []
+    mode: str = "novel"
 
 
 @router.post("/{project_id}/ask")
 async def ask(project_id: str, req: AskRequest):
-    # Fetch bible facts
     bible_result = supabase.table("bible_facts")\
         .select("*")\
         .eq("project_id", project_id)\
         .eq("status", "confirmed")\
         .execute()
 
-    # Fetch last 3 approved scenes for recent context
     scenes_result = supabase.table("scenes")\
         .select("scene_number, content")\
         .eq("project_id", project_id)\
@@ -55,16 +54,14 @@ async def ask(project_id: str, req: AskRequest):
         .limit(3)\
         .execute()
 
-    # Reverse so they're oldest to newest
     recent_scenes = list(reversed(scenes_result.data or []))
-
-    # Convert Pydantic models to plain dicts for llm.py
     history = [{"role": turn.role, "content": turn.content} for turn in req.chat_history]
 
     answer = await ask_story_question(
         question=req.question,
         bible_facts=bible_result.data or [],
         recent_scenes=recent_scenes,
-        chat_history=history
+        chat_history=history,
+        mode=req.mode
     )
     return {"answer": answer}

@@ -11,23 +11,28 @@ class SceneGenerateRequest(BaseModel):
     project_id: str
     description: str
     last_scene_content: str = ""
+    mode: str = "novel"
 
 
 class SceneApproveRequest(BaseModel):
     project_id: str
     scene_number: int
     content: str
+    mode: str = "novel"
 
 
 class SceneIterateRequest(BaseModel):
     project_id: str
     current_draft: str
     feedback: str
+    mode: str = "novel"
 
 
 class SceneEnhanceRequest(BaseModel):
     project_id: str
     content: str
+    feedback: str = ""
+    mode: str = "novel"
 
 
 @router.post("/generate")
@@ -43,7 +48,8 @@ async def generate(req: SceneGenerateRequest):
     generated_text = await generate_scene(
         description=req.description,
         bible_facts=bible_facts,
-        last_scene=req.last_scene_content
+        last_scene=req.last_scene_content,
+        mode=req.mode
     )
     return {"content": generated_text}
 
@@ -64,7 +70,8 @@ async def approve(req: SceneApproveRequest, background_tasks: BackgroundTasks):
         update_bible_after_approval,
         project_id=req.project_id,
         scene_id=scene_id,
-        scene_content=req.content
+        scene_content=req.content,
+        mode=req.mode
     )
 
     return {"status": "approved", "scene_id": scene_id, "bible_update": "processing"}
@@ -83,7 +90,8 @@ async def iterate(req: SceneIterateRequest):
     revised_text = await iterate_scene(
         current_draft=req.current_draft,
         feedback=req.feedback,
-        bible_facts=bible_facts
+        bible_facts=bible_facts,
+        mode=req.mode
     )
     return {"content": revised_text}
 
@@ -100,6 +108,8 @@ async def enhance(req: SceneEnhanceRequest):
 
     enhanced_text = await enhance_scene(
         rough_text=req.content,
-        bible_facts=bible_facts
+        bible_facts=bible_facts,
+        feedback=req.feedback,
+        mode=req.mode
     )
     return {"enhanced": enhanced_text}

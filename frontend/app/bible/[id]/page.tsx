@@ -25,25 +25,31 @@ export default function BiblePage() {
       fetch(`${API}/projects/${projectId}`).then(r => r.json()),
       fetch(`${API}/bible/${projectId}`).then(r => r.json()),
     ]).then(([proj, bible]) => {
-      setProject(proj);
+      setProject(proj.project || proj);
       setFacts(bible.bible || []);
       setLoading(false);
     });
   }, [projectId]);
 
+  const isScreenplay = project?.mode === 'screenplay';
+
   const characters = facts.filter(f => f.category === 'character');
+  const locations = facts.filter(f => f.category === 'location');
   const worldFacts = facts.filter(f => f.category === 'world');
   const plotThreads = facts.filter(f => f.category === 'plot_thread');
   const established = facts.filter(f => f.category === 'established_fact');
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
-
-      {/* Top bar */}
       <div style={{ height: '52px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 32px', gap: '20px' }}>
         <button onClick={() => router.push(`/editor/${projectId}`)}
           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '18px' }}>←</button>
         <div style={{ fontSize: '11px', letterSpacing: '3px', color: 'var(--accent)' }}>{project?.title || '...'}</div>
+        {isScreenplay && (
+          <div style={{ fontSize: '9px', letterSpacing: '2px', color: 'var(--accent-dim)', border: '1px solid var(--accent-dim)', padding: '2px 6px' }}>
+            SCREENPLAY
+          </div>
+        )}
         <div style={{ flex: 1 }} />
         <button onClick={() => router.push(`/story/${projectId}`)}
           style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '5px 14px', fontSize: '11px', letterSpacing: '2px', cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -52,7 +58,9 @@ export default function BiblePage() {
       </div>
 
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '60px 40px' }}>
-        <div style={{ fontSize: '11px', letterSpacing: '4px', color: 'var(--accent)', marginBottom: '12px' }}>STORY BIBLE</div>
+        <div style={{ fontSize: '11px', letterSpacing: '4px', color: 'var(--accent)', marginBottom: '12px' }}>
+          {isScreenplay ? 'SCRIPT BIBLE' : 'STORY BIBLE'}
+        </div>
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: '40px', fontWeight: 400, margin: '0 0 60px' }}>
           {loading ? 'Loading...' : `${facts.length} facts extracted`}
         </h1>
@@ -66,7 +74,7 @@ export default function BiblePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
               {characters.map(f => (
                 <div key={f.id} style={{ border: '1px solid var(--border)', padding: '24px', background: 'var(--surface)' }}>
-                  <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', marginBottom: '16px', color: 'var(--text)' }}>
+                  <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', marginBottom: '16px' }}>
                     {f.content?.name || 'Unknown'}
                   </div>
                   {Object.entries(f.content || {}).filter(([k]) => k !== 'name').map(([k, v]) => (
@@ -77,6 +85,34 @@ export default function BiblePage() {
                       </div>
                     ) : null
                   ))}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Locations — screenplay only */}
+        {locations.length > 0 && (
+          <section style={{ marginBottom: '60px' }}>
+            <div style={{ fontSize: '11px', letterSpacing: '3px', color: 'var(--text-muted)', marginBottom: '24px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
+              LOCATIONS — {locations.length}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {locations.map(f => (
+                <div key={f.id} style={{ border: '1px solid var(--border)', padding: '20px 24px', background: 'var(--surface)' }}>
+                  <div style={{ fontSize: '12px', letterSpacing: '2px', color: 'var(--accent)', marginBottom: '8px', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {f.content?.slug || 'UNKNOWN LOCATION'}
+                  </div>
+                  {f.content?.description && (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '6px' }}>
+                      {f.content.description}
+                    </div>
+                  )}
+                  {f.content?.significance && (
+                    <div style={{ fontSize: '12px', color: 'var(--accent-dim)', lineHeight: 1.5 }}>
+                      {f.content.significance}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

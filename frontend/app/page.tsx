@@ -9,6 +9,7 @@ interface Project {
   id: string;
   title: string;
   premise: string;
+  mode: string;
   created_at: string;
 }
 
@@ -17,6 +18,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [title, setTitle] = useState('');
   const [premise, setPremise] = useState('');
+  const [mode, setMode] = useState<'novel' | 'screenplay'>('novel');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -29,7 +31,6 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/projects/`);
       const data = await res.json();
-      // handle both {projects: [...]} and {projects: {data: [...]}} shapes
       const list = data.projects?.data || data.projects || [];
       setProjects(list);
     } catch (err) {
@@ -46,7 +47,7 @@ export default function Home() {
       const res = await fetch(`${API}/projects/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, premise }),
+        body: JSON.stringify({ title, premise, mode }),
       });
       const data = await res.json();
       const projectId = data.project?.id || data.id;
@@ -61,7 +62,6 @@ export default function Home() {
   return (
     <main style={{ minHeight: '100vh', padding: '60px 40px', maxWidth: '900px', margin: '0 auto' }}>
 
-      {/* Header */}
       <div style={{ marginBottom: '80px', animation: 'fadeIn 0.6s ease' }}>
         <div style={{ color: 'var(--accent)', fontSize: '11px', letterSpacing: '4px', marginBottom: '16px', fontWeight: 500 }}>
           STORY ASSISTANT
@@ -72,7 +72,6 @@ export default function Home() {
         </h1>
       </div>
 
-      {/* New project button / form */}
       <div style={{ marginBottom: '60px' }}>
         {!showForm ? (
           <button
@@ -109,6 +108,7 @@ export default function Home() {
             <div style={{ marginBottom: '20px', fontSize: '11px', letterSpacing: '3px', color: 'var(--text-muted)' }}>
               NEW STORY
             </div>
+
             <input
               type="text"
               placeholder="Title"
@@ -127,6 +127,7 @@ export default function Home() {
                 outline: 'none',
               }}
             />
+
             <textarea
               placeholder="One paragraph premise — what is this story about?"
               value={premise}
@@ -142,12 +143,59 @@ export default function Home() {
                 fontFamily: 'JetBrains Mono, monospace',
                 fontWeight: 300,
                 padding: '8px 0',
-                marginBottom: '32px',
+                marginBottom: '28px',
                 outline: 'none',
                 resize: 'none',
                 lineHeight: 1.6,
               }}
             />
+
+            {/* Mode selector */}
+            <div style={{ marginBottom: '32px' }}>
+              <div style={{ fontSize: '10px', letterSpacing: '3px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                FORMAT
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setMode('novel')}
+                  style={{
+                    background: mode === 'novel' ? 'var(--accent)' : 'transparent',
+                    border: '1px solid var(--accent)',
+                    color: mode === 'novel' ? 'var(--bg)' : 'var(--accent)',
+                    padding: '8px 20px',
+                    fontSize: '11px',
+                    letterSpacing: '2px',
+                    cursor: 'pointer',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  NOVEL
+                </button>
+                <button
+                  onClick={() => setMode('screenplay')}
+                  style={{
+                    background: mode === 'screenplay' ? 'var(--accent)' : 'transparent',
+                    border: '1px solid var(--accent)',
+                    color: mode === 'screenplay' ? 'var(--bg)' : 'var(--accent)',
+                    padding: '8px 20px',
+                    fontSize: '11px',
+                    letterSpacing: '2px',
+                    cursor: 'pointer',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  SCREENPLAY
+                </button>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px', lineHeight: 1.5 }}>
+                {mode === 'novel'
+                  ? 'Literary prose — paragraphs, internal voice, narrative description.'
+                  : 'Proper screenplay format — slug lines, action lines, dialogue. Craft tuned for the screen.'}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: '16px' }}>
               <button
                 onClick={createProject}
@@ -168,7 +216,7 @@ export default function Home() {
                 {loading ? 'CREATING...' : 'CREATE STORY'}
               </button>
               <button
-                onClick={() => { setShowForm(false); setTitle(''); setPremise(''); }}
+                onClick={() => { setShowForm(false); setTitle(''); setPremise(''); setMode('novel'); }}
                 style={{
                   background: 'transparent',
                   border: '1px solid var(--border)',
@@ -220,8 +268,21 @@ export default function Home() {
                 (e.currentTarget as HTMLDivElement).style.background = 'transparent';
               }}
             >
-              <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', marginBottom: '8px' }}>
-                {project.title}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px' }}>
+                  {project.title}
+                </div>
+                {project.mode === 'screenplay' && (
+                  <div style={{
+                    fontSize: '9px',
+                    letterSpacing: '2px',
+                    color: 'var(--accent-dim)',
+                    border: '1px solid var(--accent-dim)',
+                    padding: '2px 6px',
+                  }}>
+                    SCREENPLAY
+                  </div>
+                )}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '12px' }}>
                 {project.premise || 'No premise set'}
